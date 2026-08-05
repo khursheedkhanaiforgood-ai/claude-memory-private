@@ -1,0 +1,3 @@
+# Exclude files containing live credentials
+project_cisco_en_cli_agent.md
+security_assessment_cisco_en_cli_agent.md

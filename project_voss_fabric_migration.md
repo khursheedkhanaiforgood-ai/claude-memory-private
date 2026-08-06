@@ -242,13 +242,42 @@ Use the Master Lab Guide from the dialogue as context. Nodes:
 - Node_05 (Gateway): Modem 192.168.1.1 on Port 1/1
 
 ## Phase Status
-- Phase 1 (EXOS backup + OS conversion): PLANNED
+- Phase 1 (EXOS backup + OS conversion): PLANNED — EXOS_SwitchtoVOSS only
 - Phase 2 (SPB fabric + VLAN/I-SID): PLANNED
 - Phase 3 (DHCP + routing + AP verify): PLANNED
 - All 4 SSIDs must work on iPhone before migration is complete
 
 ## Why: Context
 User completed EXOS lab Apr 7 2026. Wants to explore enterprise-grade Fabric Connect (SPB/VOSS) on same hardware to understand service-centric vs hop-by-hop networking model. VOSS is the more advanced persona — used in large enterprise and carrier deployments.
+
+---
+
+## Aug 5 2026 — Topology Update (2-site, 2-switch, 2-AP)
+
+### Revised Physical Topology
+| Device | Name | Location | OS | Uplink | Status |
+|---|---|---|---|---|---|
+| EN_5320 #1 | VOSS_Switch_RDU | RDU_Fishbowl | VOSS (already) | IPE→SD-WAN→home lab | Password locked — pending Karl |
+| EN_5320 #2 | EXOS_SwitchtoVOSS | Home lab | EXOS → migrate | CenturyLink modem (already configured) | Ready to convert |
+| AP3000 #1 | AP_NPS | RDU | — | Connected to VOSS_Switch_RDU | Active — 802.1X/NPS lab |
+| AP3000 #2 | AP_VOSS | Home lab | — | Will connect to EXOS_SwitchtoVOSS post-migration | Available |
+
+### Revised Migration Scope
+- **VOSS_Switch_RDU** — already running VOSS. Use as live reference once password recovered (Karl). Do NOT re-migrate.
+- **EXOS_SwitchtoVOSS** — local migration target. Phases 1-3 apply here only.
+- **AP_VOSS** — will connect to EXOS_SwitchtoVOSS after VOSS migration. Fabric Attach provisioning via EP1.
+- **Internet exit** — CenturyLink modem already configured on EXOS_SwitchtoVOSS from prior labs. Port 1 transit VLAN 100 config carries forward.
+
+### VIQ Assignments
+| VIQ | Owner | Used For |
+|---|---|---|
+| RDU_Fishbowl VIQ | Karl | VOSS_Switch_RDU + AP_NPS (802.1X/NPS lab) |
+| khukhan+lab@extremenetworks.com | Khursheed (personal) | EXOS_SwitchtoVOSS + AP_VOSS migration work |
+
+### Pending Before Phase 1
+- Recover VOSS_Switch_RDU password (Karl) — use as VOSS reference during local migration
+- D1-D9 Socratic revamp + script-bank build (in progress Aug 5 2026)
+- Confirm EXOS_SwitchtoVOSS current config backed up before OS conversion
 
 ---
 

@@ -75,8 +75,17 @@ The earlier rule (dark-themed dashboard, 8-slot sticky nav: Sprint | Arch | Socr
 
 Dark theme is still appropriate for **pure reference pages** (credential sheets, command quick-reference) — not for session narrative EODs.
 
+## Also applies to presentation decks and diagnostic write-ups
+Confirmed 2026-08-10: any HTML deck or forensic write-up (e.g. `deck_8021x_vlan_diagnosis.html`) must also use the NYT journal template, NOT a dark slide-style theme. The sticky TOC nav acts as slide navigation. Sections replace slides.
+
+**Why:** User corrected dark-themed deck on GitHub Pages — "This is NOT the NYT template." Apply NYT universally to all 5320-onboarding HTML outputs.
+
+## Canonical reference
+`/Users/khukhan/5320-onboarding-agent/docs/session_summary_20260807.html` — use this as the CSS/structure baseline for all new HTML files in this project.
+
 ## How to apply
 1. Write the headline first — what was the defining arc of this session?
 2. Write the italic subtitle — one paragraph summary of the narrative.
 3. List the sections that were actually covered → build TOC from those.
 4. Never add a section just because it was in a previous EOD's TOC.
+5. For decks: sections = slides. Sticky TOC = slide nav. Same CSS, no exceptions.

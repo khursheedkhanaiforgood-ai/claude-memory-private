@@ -11,9 +11,13 @@ configure vlan <vlan_name> dhcp-address-range <start_ip> - <end_ip>
 configure vlan <vlan_name> dhcp-options default-gateway <svi_ip>
 configure vlan <vlan_name> dhcp-options dns-server primary 8.8.8.8
 configure vlan <vlan_name> dhcp-options dns-server secondary 8.8.4.4
-enable dhcp ports <port_number> vlan <vlan_name>
+enable dhcp vlan <vlan_name>
 save configuration
 ```
+
+⚠️ **CRITICAL DISTINCTION — confirmed Aug 13 2026:**
+- `enable dhcp vlan <name>` = enables DHCP **SERVER** on that VLAN ← use this
+- `enable dhcp ports <port> vlan <name>` = enables DHCP **CLIENT** on that port (switch requests IP from upstream) ← NEVER use for server role
 
 ### Real example (SW1, VLANs 20 + 30, AP on port 3):
 ```
@@ -21,13 +25,13 @@ configure vlan SW_VLAN_20 dhcp-address-range 10.20.0.100 - 10.20.0.200
 configure vlan SW_VLAN_20 dhcp-options default-gateway 10.20.0.1
 configure vlan SW_VLAN_20 dhcp-options dns-server primary 8.8.8.8
 configure vlan SW_VLAN_20 dhcp-options dns-server secondary 8.8.4.4
-enable dhcp ports 3 vlan SW_VLAN_20
+enable dhcp vlan SW_VLAN_20
 
 configure vlan SW_VLAN_30 dhcp-address-range 10.30.0.100 - 10.30.0.200
 configure vlan SW_VLAN_30 dhcp-options default-gateway 10.30.0.1
 configure vlan SW_VLAN_30 dhcp-options dns-server primary 8.8.8.8
 configure vlan SW_VLAN_30 dhcp-options dns-server secondary 8.8.4.4
-enable dhcp ports 3 vlan SW_VLAN_30
+enable dhcp vlan SW_VLAN_30
 save configuration
 ```
 

@@ -435,13 +435,21 @@ SW2 learns `0.0.0.0/0` from SW1 automatically via IS-IS. Verify on SW2: `show ip
 - 087dc5e — Masterclass deck M1–M12 (+558 lines)
 - 2faefea — Heart of VOSS D1–D9 (+502 lines)
 
-### PENDING — Next Revision
-**Add RFC/IEEE hyperlinks to D1 (The Four Laws section)**
-- IEEE 802.1aq — https://ieeexplore.ieee.org/document/6047717
-- RFC 6329 — https://www.rfc-editor.org/rfc/rfc6329
-- IEEE 802.1ah — https://ieeexplore.ieee.org/document/4775741
-- IEEE 802.1Qcj (Fabric Attach) — LLDP extension
-- Why: User explicitly requested for "next revision" at end of Apr 28 session
+### Aug 20 2026 — D1–D9 Curriculum COMPLETE + RFC Links DONE
+- D1 RFC/IEEE hyperlinks added to voss_migration_horizon.html (commit eacc7ea). All four standard badges now clickable.
+- Full D1–D9 Heart of VOSS Socratic curriculum completed in one sitting. EOD: docs/session_summary_20260820.html (commit 97914ea).
+- Key new concepts solidified: Two-Push Rule (switch policy FIRST, then AP Network Policy), Auto-Sense device differentiation (FA TLVs = AP; no FA = laptop), campus fabric (no dedicated core), mixed-mode VOSS+EXOS boundary.
 
-**Why:** User wants the reference page to link to actual standards so each "Law" in D1 can be explored in detail.
-**How to apply:** In next session, open voss_migration_horizon.html, find the D1 section, wrap each standard badge in an `<a href="..." target="_blank">` tag using the URLs above.
+### Aug 21 2026 — Home Lab VOSS Start (NEXT SESSION)
+**Plan:** Start physical VOSS home lab with two 5320s.
+- 5320_fabric_se — already running VOSS (claimed by SE)
+- 5320_Exos_EP1 — running EXOS, claimed by EP1; convert to VOSS first
+**First tasks in sequence:**
+1. Back up EXOS config on 5320_Exos_EP1 (XIQ backup + `save configuration as-script`)
+2. Convert 5320_Exos_EP1 to VOSS (XIQ Actions → Change OS, or boot menu)
+3. Configure SE VOSS Domain for 5320_fabric_se (match SPBM params)
+4. Configure EP1 Network Policy → Fabric Connect for 5320_Exos_EP1
+5. Cable NNI → verify IS-IS adjacency
+6. Push AP Network Policy (SSIDs + I-SID mappings) to both AP3000s
+**Key reference:** CLI scripts in this file above (Horizon Port 10 variant — matches actual lab topology: Port 10 = NNI, Port 3 = AP FA port)
+**Constraint:** Two orchestrators (SE + EP1) — SPBM parameters must be manually aligned. Do NOT cable NNI until both switches are independently verified.

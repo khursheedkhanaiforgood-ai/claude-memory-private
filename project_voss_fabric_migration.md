@@ -1,6 +1,6 @@
 ---
 name: VOSS/FabricEngine Migration Project — Full State
-description: EXOS→VOSS migration for Horizon lab. voss_migration_horizon.html LIVE on GitHub Pages (Apr 28 2026). 35 sidebar sections: 14 original + 12 Masterclass slides (M1-M12) + 9 Heart of VOSS (D1-D9). Pending next revision: add RFC/IEEE hyperlinks to D1.
+description: EXOS→VOSS migration for Horizon lab. voss_migration_horizon.html LIVE on GitHub Pages (Apr 28 2026). 35 sidebar sections: 14 original + 12 Masterclass slides (M1-M12) + 9 Heart of VOSS (D1-D9). Aug 27: new thread — 5320 reverted to EXOS, building UZTNA (Extreme Platform ONE Security) demo lab.
 type: project
 originSessionId: f514f622-f559-4492-9f78-451fab154098
 ---
@@ -453,3 +453,169 @@ SW2 learns `0.0.0.0/0` from SW1 automatically via IS-IS. Verify on SW2: `show ip
 6. Push AP Network Policy (SSIDs + I-SID mappings) to both AP3000s
 **Key reference:** CLI scripts in this file above (Horizon Port 10 variant — matches actual lab topology: Port 10 = NNI, Port 3 = AP FA port)
 **Constraint:** Two orchestrators (SE + EP1) — SPBM parameters must be manually aligned. Do NOT cable NNI until both switches are independently verified.
+
+---
+
+## Aug 22 2026 — VOSS_MyLab Troubleshooting — BLOCKED (user self-solving)
+
+**Switch:** 5320-16P-2MXT-2X-FabricEngine, VOSS 9.4.0.0, IP 192.168.0.29, in-band management ONLY (no OOB MGT port).
+**Session goal:** Restore IQAgent + AP3000 (AH-556680) on port 1/3, console-only.
+
+### What Was Solved
+- IS-IS/SPBM fabric: UP. I-SIDs 10010 (VLAN 10), 10020 (VLAN 20) confirmed.
+- FA Authentication Succeeded (first time ever) — auto-sense MSG-AUTH key matched after AP reboot.
+- `show i-sid` → `u:1/3` for I-SID 10010: VLAN 10 correctly set as egress-untagged on port 1/3.
+- `show vlan members 10` → port 1/3 ACTIVE (FA dynamic — not STATIC).
+- `show vlan members 4048` → EMPTY — auto-sense onboarding VLAN NOT catching port 1/3 traffic.
+
+### What's Still Broken
+
+**AP3000 (AH-556680) — orange LED, no DHCP:**
+- AP factory-reset during session (EP1 server names now empty, using redirector.aerohive.com).
+- AP `show interface mgt0`: IP=192.168.1.1 (factory fallback), Rx=0, Gateway=0.0.0.0.
+- Switch DHCP leases=0 — AP DISCOVERs NOT reaching VLAN 10 DHCP server.
+- Suspected root cause: **PVID mismatch** — FA sets VLAN 10 as egress-untagged (`u:1/3`) but PVID (ingress classification for untagged frames) may still be VLAN 1 (default). If PVID=1, AP's untagged DISCOVERs → VLAN 1 → no DHCP server → dropped silently.
+- `show vlan members 1` (Aug 22 07:07): port 1/3 NOT in VLAN 1. Only port 1/1 is ACTIVE in VLAN 1.
+- `show interface GigabitEthernet 1/3` (Aug 22 07:07): VLAN column = **"Tagged"** — port is in trunk/tagged mode. FA assigned VLAN 10 egress-untagged (`u:1/3`) but did NOT convert port to access mode. Untagged ingress frames from AP are classified by PVID — PVID value unknown, not shown in this output.
+- **PVID is the suspected root cause.** If PVID ≠ 10, AP's untagged DHCP DISCOVERs land on wrong VLAN → no DHCP server → dropped. PVID command syntax in VOSS 9.4 not yet confirmed (tried `vlan ports 1/3 pvid 10` = invalid).
+- AP CLI: `no interface mgt0 dhcp` = "Incomplete command" — correct IQ Engine DHCP renew syntax unknown.
+- `show ip dhcp-server statistics` = invalid command in VOSS 9.4.
+
+**IQAgent — offline (accepted limitation):**
+- `ip name-server` does NOT feed IQAgent `/etc/resolv.conf` in VOSS (confirmed).
+- No Linux shell access, no OOB MGT port — cannot manually fix resolv.conf.
+- IQAgent will only reconnect if switch gets DHCP at boot (ZTP+) — not possible with static IP.
+- Status: accepted as blocked until NNI reconnected and Karl assists, or hardware workaround found.
+
+**NNI port 1/10:** Still unplugged — switch isolated from Fishbowl fabric.
+
+### Final State (end of Aug 22 session)
+- Port 1/3: Access mode confirmed (PVID=10) ✓ — was Tagged before fix
+- AP still Rx=0, no DHCP lease after reboot
+- `show ip dhcp-server` revealed two new suspects:
+  1. **HA Status: Initialising** — DHCP server stuck, not serving. Mgmt-clip set to 10.0.0.2 but only Clip1 (10.0.0.1) exists → address mismatch may be keeping HA in init state.
+  2. **Authoritative: disabled**
+- `show ip interface`: Vlan10 10.0.10.1 UP ✓, routing fine
+- `show ip dhcp-server subnet` NOT yet run — do this first next session to verify pool exists
+- Fix to try: `no ip dhcp-server enable` → `ip dhcp-server enable` → check if HA goes Active
+- Also: create Clip2 at 10.0.0.2 to resolve mgmt-clip mismatch, OR change mgmt-clip to Clip1 (10.0.0.1)
+- NNI port 1/10 still unplugged. IQAgent still offline.
+
+### Resume Next Session
+1. `show ip dhcp-server subnet` — verify 10.0.10.0/24 pool exists
+2. Restart DHCP server — `no ip dhcp-server enable` / `ip dhcp-server enable`
+3. Fix mgmt-clip mismatch (10.0.0.2 vs Clip1=10.0.0.1)
+4. Watch for DHCP lease on AP
+
+---
+
+## Aug 24 2026 — Decision: Clean Rebuild (EXOS → EP1 → VOSS) Instead of Live DHCP Fix
+
+**Decision:** User opted to wipe and redo cleanly rather than chase the mgmt-clip/HA DHCP fix live. Rationale: wants lessons learned baked into initial config rather than patched live.
+
+**New facts confirmed this session:**
+- VOSS_MyLab and AP_3000_MyLab (AH-556680) have BOTH dropped off EP1 entirely — not cloud-visible. Consistent with IQAgent-offline finding from Aug 22 (static IP never populated resolv.conf). Means OS conversion back to EXOS MUST be done via console/boot-menu, not EP1 Actions → Change OS.
+- **NNI port CONFIRMED 1/10 ↔ 1/10 (VOSS_SE side and VOSS_MyLab side) — verified via LSDB check by user.** Previously unconfirmed on the VOSS_SE side; now confirmed truth, not assumption.
+- **KB gap found (Workato KB Search, Aug 24):** Extreme KB has a clean, confirmed console boot-menu procedure for EXOS→VOSS (console @ 115200 baud, hold spacebar during boot, select "Change the switch OS to VOSS"). It does **NOT** have a confirmed boot-menu procedure for the reverse (VOSS→EXOS) — only a vague reference in an internal presentation to a `.xos` image download + activation + reset from VOSS CLI, no exact syntax. Do not guess at VOSS-side CLI install commands — verify further before running on live hardware.
+
+### Clean Rebuild Plan (current plan of record)
+0. Capture `show running-config` on VOSS_MyLab before wipe (reference only — Aug 22 confirmed-working ISIS/SPBM/I-SID block).
+1. Revert VOSS_MyLab to EXOS via console boot-menu (spacebar at boot) — try same menu first, may symmetrically offer "Change switch OS to EXOS" even though currently on VOSS. If not present, need to find exact VOSS CLI `.xos` install/activate command before proceeding (KB gap above).
+2. Let switch ZTP+ discover EP1 fresh from clean EXOS boot (fresh DHCP should also fix the resolv.conf/IQAgent issue that blocked cloud visibility).
+3. Convert back to VOSS via EP1 (Actions → Change OS → VOSS) — should work now that it's cloud-visible again.
+4. Rebuild VOSS config: same SPBM/I-SID/FA as before, PLUS explicit DHCP server HA/mgmt-clip check baked in this time (see mgmt-clip alignment fix under Aug 22 section — this was the real root cause, not tagging).
+5. Cable + configure NNI 1/10 ↔ 1/10 to VOSS_SE this time (previously left unplugged/standalone).
+6. Before trusting NNI adjacency, confirm with Karl whether the EVE-NG disk failure / IS-IS adjacency loss on Fishbowl side (vBOB02-Headend/Kit, Aug 19-20, tracked in `project_voss_siteengine_lab.md`) is resolved — separate blocker, unrelated to local rebuild.
+7. Verify end to end: `show isis adj`, `show fa neighbor`, AP3000 DHCP lease, IQAgent reconnect.
+
+**Status: PAUSED — user stepped away before console reboot. Resume at Step 1 (console boot-menu check) when user returns.**
+
+---
+
+## Aug 24 2026 (later same session) — Step 1 BLOCKED: EXOS revert path dead-ends
+
+**Pre-wipe backup completed successfully** — full `show running-config` + `show i-sid` + `show vlan members` + `show spbm` + `show isis` + `show isis lsdb` + `show ip route` captured via `screen -L` to `~/voss_mylab_running_config_20260824.txt`.
+
+**Live config revealed 4 discrepancies vs. the documented plan (all still true, useful for whichever path is chosen next):**
+1. **manual-area is `49.b0b1`, NOT `00.0001`** as written throughout this doc's CLI reference. If VOSS_SE's manual-area doesn't match `49.b0b1`, that alone blocks ISIS adjacency — check before any NNI rebuild.
+2. **`show isis` → `Num of Interfaces: 0`** — no port has `isis enable`/`isis spbm 1` configured, not even 1/10. NNI was never configured at the interface level, not just unplugged.
+3. **VLAN 20 ("Guest", i-sid 10020) has zero port members** — only VLAN 10/Staff (port 1/3) was ever active. Second SSID's VLAN was never live on this switch.
+4. **`show isis lsdb` shows only this switch itself** (`khKlab-SW-02`, 3 self-originated LSP fragments, area "HOME") — no VOSS_SE entry. No live adjacency currently exists, consistent with #2.
+5. **Mgmt-clip mismatch theory from Aug 22 REVISED**: both `loopback 1` (Clip1 = 10.0.0.1, ISIS source) and `mgmt clip` (10.0.0.2, in-band mgmt) exist and are both configured — not a missing/mismatched clip as originally suspected. `show isis` confirms `Inband Mgmt Clip Ip: 10.0.0.2` active. The real cause of the DHCP HA "Initialising" state from Aug 22 is still unresolved.
+
+**Boot-menu check result:** Rebooted with `reset -y`, held spacebar, got the boot menu (`5320-16P-2MXT-2X Boot Menu 3.6.0.3`). Options were **only**: `VOSS: Default`, `VOSS: Rescue`, `Run Manufacturing Diagnostics`, `Reboot system`. **No "Change switch OS to EXOS" option exists on this hardware/bootloader.** Backed out via ESC without selecting anything (booted back into VOSS normally).
+
+**KB search (Workato KB, 2nd query) confirms:** no verified CLI command exists either for VOSS→Switch Engine/EXOS image install/activate. KB only has the forward direction (EXOS→VOSS, both boot-menu and `download image` CLI methods) fully documented.
+
+**User then confirmed: no EXOS (`.xos`) image file available locally either.**
+
+### Conclusion: EXOS-revert path is DEAD-ENDED for now
+Blocked on all three fronts — no boot-menu option, no documented CLI procedure, no image file. Not pursuable until an EXOS image is obtained (Extreme support portal, requires valid support contract/serial) AND a documented/verified reverse-conversion procedure is found.
+
+### Next Decision Point (pending user choice)
+Two live options as of end of this session:
+- **(A) Get EXOS image + verified procedure first**, then resume the original clean-rebuild plan once both blockers are cleared.
+- **(B) Abandon the OS round-trip entirely** and instead fix VOSS_MyLab in place on its current VOSS install: add the missing ISIS interface config on port 1/10 (was never configured, per finding #2), align manual-area with VOSS_SE (finding #1), and resolve the DHCP HA "Initialising" issue directly (Aug 22 troubleshooting, cause still open per finding #5) — no wipe needed at all.
+
+**User rejected further Claude-driven diagnosis on this topic mid-session (see `feedback_voss_mylab_no_unsolicited_diagnosis.md`).**
+
+---
+
+## Aug 24 2026 (later same session, cont'd) — NNI reconnected, IQAgent DNS fix attempt failed
+
+**User re-inserted port 1/10 on both VOSS_SE and VOSS_MyLab.** Fabric adjacency confirmed UP: `show isis lsdb` now shows 6 systems in area HOME — khKlab-SW-02, KhKLab-SW-01, TSLab-SW-01, FishBowl-Fabric_Core-5720-01, Fishbowl-SW-01 (plus VOSS_MyLab itself). This resolves finding #2/#4 above — NNI is live now.
+
+**IQAgent reinstall attempted:** `no iqagent enable` → `software iqagent reinstall` (from Privileged EXEC, correct mode) → `iqagent enable`. Agent restarted but still failed to connect:
+- `Unable to resolve [hac.extremecloudiq.com] hostname` (DNS)
+- Unable to get XIQ IP via DHCP, DNS, or Redirector methods
+- `show application iqagent status` → Connection Status: Disconnected
+- Confirmed via direct test: `ping 8.8.8.8` succeeds (internet path fine), `ping hac.extremecloudiq.com` → "Unknown Destination" (DNS resolution specifically broken)
+
+**Conclusion: reinstalling IQAgent did not fix DNS resolution.** Same root cause as Aug 22 (`ip name-server` doesn't feed IQAgent's resolver in VOSS; needs DHCP-at-boot/ZTP+, not possible with static IP) — confirmed still true after reinstall.
+
+**Useful corrected CLI syntax found this session (Workato KB):**
+- `show fabric attach elements` — NOT `show fa neighbor` (invalid on this build)
+- `show isis lsdb` — NOT `show lsdb` (lsdb is nested under isis)
+- `reset -y` — reboot/reset command
+- `software iqagent reinstall` — must run from Privileged EXEC, not from inside `configure terminal > application` submode
+
+**Status: PAUSED — user is looping in Karl. Do not proceed with further diagnosis on this topic unless explicitly asked (see feedback file). Resume when user says "resume VOSS_MyLab" or similar, or reports what Karl said.**
+
+**Awaiting user decision on A vs B.**
+
+---
+
+## Aug 27 2026 — New Thread: 5320_MyLab reverted to EXOS, UZTNA build-out started
+
+**Context shift:** Separate from the VOSS_MyLab/VOSS_SE fabric thread above (still paused, awaiting Karl). This is the same physical 5320 + AP3000, now back on **EXOS** (`5320_Exos_MyLab`), starting a fresh lab goal: demonstrate Extreme's Universal ZTNA — now branded **"Extreme Platform ONE Security"** — end to end.
+
+**Sequence so far:**
+1. Port 1 (uplink) + Port 3 (AP3000) both verified untagged/Default VLAN only — no tagging leakage (`show vlan Default` + `show ports 1,3 information`).
+2. Basic SSID pushed and confirmed working — client got DHCP from home router (QF-Modem) via Default VLAN bridging, no switch-side DHCP needed yet.
+3. CAPWAP "policy reverts to default after push" issue from a prior VOSS session investigated: rollback-timer theory ruled out (CAPWAP never actually dropped), device-level override ruled out (user confirmed none present). Leading theory for next session: resave/redeploy ("Complete Configuration Push") — untested.
+4. UZTNA design finalized: **EAP-TTLS** (not EAP-TLS) chosen — no client certs to distribute. Open-SSID + CWP ruled out per KB: CWP requires the SSID to be Enterprise 802.1X. RADIUS **Filter-Id** (single attribute) chosen over the 3-tuple Tunnel-Type method to map policy group → VLAN.
+5. Policy `AP_EXOS_Aug27_UZTNA` built in EP1: Enterprise 802.1X + EAP-TTLS + CWP "UZTNA" layered on top, RADIUS Server Group configured, Filter-Id set. Password lives on the **individual local user record**, not the group — group membership only drives Filter-Id/VLAN assignment. SSID Name field still blank; 8 legacy/template profile rows (`UZTNA_Policy_TeamUSA→UZTNA_10`, `TeamAUS→UZTNA_20`, `VIP→UZTNA_40`, `Guest→UZTNA_30`, `POS→UZTNA_50`, plus `Test_UZTNA` entries) still present and unresolved.
+6. **Explicit scope decision:** VLAN10/UZTNA_10 client rollout (port tagging + DHCP Supplemental CLI + home router return route) intentionally deferred — user wants DHCP working before authenticating any real client into that VLAN. Tonight's push stayed Wireless-only, no Switching/Routing changes.
+
+**Drafted but NOT YET PUSHED CLI (for when DHCP rollout resumes):**
+```
+configure vlan UZTNA_10 dhcp-address-range 10.10.10.10 - 10.10.10.254
+configure vlan UZTNA_10 dhcp-options default-gateway 10.10.10.1
+configure vlan UZTNA_10 dhcp-options dns-server primary 8.8.8.8
+configure vlan UZTNA_10 dhcp-options dns-server secondary 1.1.1.1
+configure vlan UZTNA_10 dhcp-lease-timer 86400
+enable dhcp ports 3 vlan UZTNA_10   # NOT idempotent
+configure vlan UZTNA_10 add ports 3 tagged
+```
+
+**EOD published:** `docs/session_summary_20260827.html`, commit `3aac97a`, pushed to `voss-fabric-migration` main.
+
+### Resume Next Session (tomorrow morning, per user)
+1. Fill in SSID Name/Broadcast Name (still blank).
+2. Check AP3000 IQ Engine firmware version.
+3. Deploy Wireless-only policy push, watch CAPWAP for 15 min post-push (test the resave/redeploy theory from #3 above).
+4. Decide what to do with the 8 legacy/template profile rows.
+5. When ready to go live on VLAN10: tag port 3 + push the DHCP Supplemental CLI above + add home router return route.
+6. Confirm Platform ONE Security/UZTNA subscription entitlement (KB flagged as "available with an additional subscription" for native cloud PKI — verify this lab's tenant has it).
+
+**Status: PAUSED — user ending session for the night. Resume when user references this thread or says "continue UZTNA build."**

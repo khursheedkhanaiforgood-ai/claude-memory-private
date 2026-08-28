@@ -14,3 +14,4 @@ Do not suggest CLI commands unless 100% certain of the exact syntax.
 - Just say "I don't know" and wait for the user to direct next steps.
 - Only experiment if the user explicitly asks for it.
 - This applies to ALL CLI environments and ALL technical domains.
+- **Aug 22 2026 reinforcement:** User explicitly stated — do not suggest ANYTHING unless 100% certain. Six-hour session ended with AP still orange. Multiple commands guessed (show ip dhcp-server statistics = invalid, no interface mgt0 dhcp = invalid on HiveOS, vlan ports 1/3 pvid 10 = invalid). Stop and say "I don't know" rather than chain guesses.

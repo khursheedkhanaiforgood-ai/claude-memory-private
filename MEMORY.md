@@ -17,6 +17,8 @@
 - **AP2 (AH-565780) ONBOARDED June 16** — CAPWAP RUN, both SSIDs active, port 5 tagged. Client assoc RESOLVED (ghost device AH-901340 removed). EOD: `docs/session_summary_20260616_ap2_onboard.html` commit 51b6ce7.
 - **RADIUS sprint** — DEFERRED post-PTO. AP2 in Karl's VIQ. Auth rejected — creds not in Karl's RADIUS DB. Next: Karl adds user, re-run `_debug auth basic`. Context: `project_session_20260630_radius_vlan.md`.
 - **WiFi 7 Digital Twin Sprint** — Phase 0 never started (June 17 2026 deadline passed). Repo `/Users/khukhan/wifi-7-twin/` doesn't exist yet. Full plan: `project_wifi7_twin_sprint.md`.
+- **VOSS_MyLab — waiting on Karl (Aug 24)** — NNI 1/10 reconnected both sides, fabric adjacency confirmed UP (6 systems in LSDB). IQAgent reinstalled but DNS resolution to hac.extremecloudiq.com still fails — not fixed. User is now looping in Karl; do NOT drive further diagnosis unless asked (`feedback_voss_mylab_no_unsolicited_diagnosis.md`). Full log: `project_voss_fabric_migration.md` → Aug 24 sections.
+- **5320_MyLab UZTNA build (Aug 27)** — switch reverted to EXOS, basic SSID confirmed working. UZTNA policy `AP_EXOS_Aug27_UZTNA` built (EAP-TTLS + CWP + RADIUS Filter-Id VLAN mapping); VLAN10 DHCP rollout deferred by design until Supplemental CLI pushed. Resume: fill in SSID name, test CAPWAP resave/redeploy theory, then bring VLAN10 live. EOD: `voss-fabric-migration/docs/session_summary_20260827.html` (commit 3aac97a). Full log: `project_voss_fabric_migration.md` → Aug 27 section.
 
 > To clear an alert: delete its line once the action is complete.
 
@@ -65,6 +67,7 @@
 - [feedback_xiq_supplemental_cli.md](feedback_xiq_supplemental_cli.md) — ${vlan:NAME} resolves to VLAN ID not name — EXOS rejects it. Always hardcode VLAN name. XIQ drops underscores (Guest_100 → Guest100). Verify with show vlan first.
 - [feedback_multi_session_writes.md](feedback_multi_session_writes.md) — 4 concurrent sessions share MEMORY.md, CLAUDE.md, project_wifi_mastery_progress.md. Always Read before Edit on any shared file — never edit from cached context.
 - [feedback_session_startup_briefing.md](feedback_session_startup_briefing.md) — On every login: read Active Alerts, brief user on all session states before doing anything else. Format: bullet list per session with status + next action.
+- [feedback_voss_mylab_no_unsolicited_diagnosis.md](feedback_voss_mylab_no_unsolicited_diagnosis.md) — VOSS_MyLab hardware troubleshooting: no unsolicited root-cause theories or multi-step plans. Answer the specific ask, let user lead.
 
 ## Projects
 - [project_wifi7_twin_sprint.md](project_wifi7_twin_sprint.md) — WiFi 7 Digital Twin sprint: Phase 0 starts June 17. Omniverse→Sionna→ns3-Sionna→Streamlit. Repo: /Users/khukhan/wifi-7-twin/. Docker CPU MacBook.

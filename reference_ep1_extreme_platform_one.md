@@ -17,3 +17,5 @@ When EP1 is "down":
 EP1 being down ≠ internet down. Check extremenetworks.com/support/cloud-services-status for outage status.
 
 **Do NOT confuse with IPE** — the IPE is the SD-WAN device in Path B (SW2 → IPE Port 1/1 → RDU/FishBowl DC GRE tunnel). Completely separate device and function.
+
+**IPE = the ExtremeCloud SD-WAN appliance hardware family itself** (KB-confirmed model names: `ipe-30so` 250Mbps, `ipe-30ax` 500Mbps, `ipe-40ax-v2` 750Mbps, `ipe-420ax` 1Gbps, tiered Branch-XS/M/DC-S). "SD-WAN" and "IPE" are not two separate technologies — SD-WAN is the service/overlay, IPE is the physical appliance that runs it. When Fabric Extend is described as "SD-WAN-automated" (auto-allocating a /29 subnet per site + LLDP-based tunnel addressing), that automation runs on the IPE appliance specifically, as an alternative to hand-configuring `ip-tunnel-source-address` directly on a VOSS switch.

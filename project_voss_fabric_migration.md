@@ -619,3 +619,225 @@ configure vlan UZTNA_10 add ports 3 tagged
 6. Confirm Platform ONE Security/UZTNA subscription entitlement (KB flagged as "available with an additional subscription" for native cloud PKI — verify this lab's tenant has it).
 
 **Status: PAUSED — user ending session for the night. Resume when user references this thread or says "continue UZTNA build."**
+
+---
+
+## Sept 1 2026 — New Thread: Fabric Extend (FE) Concept Study — PAUSED, user wants to study first
+
+**Context:** Separate from both the VOSS_MyLab/VOSS_SE fabric thread and the EXOS UZTNA thread above. Same physical two 5320s (referred to here as SW1/home_lab and SW2/Karl's-managed-Voss_2), but this thread is pure architecture/concept discussion — no CLI run, no hardware touched.
+
+**Also this session:** confirmed AP1's ETH0 uplink was set to Trunk in device-level EP1 setting (not a switch issue) — see `feedback_eth0_uplink_ep1_trunk.md`. EOD published: `docs/session_summary_20260831.html`, commit `1059406`.
+
+**Sequence of concepts covered (KB-verified, not guessed):**
+1. Fabric Attach (FA) vs Fabric Extend (FE) distinction — FA = LLDP-based dynamic per-port VLAN grant to an AP/host on an existing I-SID; FE = tunneling the SPB fabric itself over a routed IP WAN as a "virtual NNI," hub-and-spoke topology.
+2. **Platform limitation confirmed via KB:** the user's 5320 switches support Fabric Extend via plain VXLAN (Fabric Engine 8.6+, well within their 9.4.0.0) but do **NOT** support the IPsec-encrypted variant of FE. IPsec-based FE requires a separate Fabric IPsec Gateway appliance, only available on 5720-24MXW/48MXW, 7520, 7720, VSP4900, VSP7400. This directly answers "can I do FE with an IPsec tunnel on my 5320s" — no.
+3. Confirmed FE over a **private/dedicated WAN** (not raw public internet) is the documented-supported design — VXLAN tunnel, no IPsec needed. Raw public-internet-with-NAT VXLAN FE is NOT documented/confirmed either way for the 5320 — open question, not resolved.
+4. Topology mapping confirmed: user's home_lab switch = hub/core, far-end switch (other side of dedicated WAN) = spoke/branch — matches FE's standard hub-and-spoke architecture, demonstrates "branch plugs in, seamlessly on network" use case.
+5. **Tunnel termination point clarified (KB-verified):** the FE tunnel source IP terminates ON the VOSS switch itself (a brouter interface or loopback address, configured under `router isis` with `ip-tunnel-source-address`), NOT on the home_router. The router stays a plain L3 gateway/NAT box, unaware of FE — SW1 stays plugged into port 1 exactly as today. No separate VPN appliance exists for the plain-VXLAN (non-IPsec) path the 5320 uses — the Fabric IPsec Gateway appliance only exists for the unsupported IPsec variant.
+
+**User then paused:** "I am a little confused about fabric extend/deployment. I need to study." — explicitly stopping to self-study rather than continue building on this. No further FE work should be pushed unprompted.
+
+**Key open items for whenever this resumes:**
+- Exact plain-VXLAN (non-IPsec) `logical-intf-tunnel`/`ip-tunnel-source-address` full CLI walkthrough — not yet looked up in full (only fragments found so far: `router isis` / `ip-tunnel-source-address <IP> vrf <vrf>` / `logical-intf isis <1-255> dest-ip <IP> name <word>`).
+- Whether plain VXLAN FE reliably traverses raw public internet/NAT without a private WAN underneath — unconfirmed in KB.
+- SW2/AP2 "reclaim from Karl's SiteEngine/IQ.Controller into MyLabVIQ" — not investigated.
+- Phase 1 SW1 EXOS→VOSS lab build (backup → convert → Test 1/2/3 DHCP/FA staged tests) — drafted CLI ready, not yet executed on hardware.
+
+**Status: PAUSED — user wants to study Fabric Extend concepts independently. Do not proceed with further FE research or push toward Phase 1 execution unless user re-initiates.**
+
+---
+
+## Sept 2 2026 — EP1 vs Site Engine fabric-orchestration comparison (user re-engaged FE thread via management-plane angle)
+
+**Context:** User asked Claude to KB-verify whether EP1 can handle all fabric orchestration (incl. BCB/BEB provisioning) vs. Site Engine, then connected it to their own topology: SD-WAN/IPE connects to a VOSS switch acting as **BEB inside Karl's network**, and that switch is managed by **Site Engine**. This is a resumption of the paused FE thread via a new angle (management plane, not tunnel CLI) — treated as concept study, not a request to execute/build.
+
+**KB-confirmed findings:**
+1. **Site Engine has documented native fabric provisioning depth that EP1 does not yet match**: auto persona-switch (Switch Engine OS → Fabric Engine OS), topology config, L2VSN/L3VSN + Service ID/Name/Type (I-SID) config, DVR + redundancy protocols (VRRP/RSMLT/DVR), port templates, and visualization of IS-IS areas/Fabric Connect links/primary-secondary paths/service location. EP1's fabric story today = visualization + AI-assisted workflows layered on Fabric Connect's built-in automation, but no KB source shows a dedicated EP1 BCB/BEB or I-SID/VSN provisioning workflow. Extreme's own positioning: Site Engine = today's fabric-management depth; EP1 = strategic cloud/AI destination.
+2. **Client does NOT need both products deployed.** KB confirms 3 supported modes: Site Engine only (local/on-prem or fully air-gapped, license-proxy-only option), EP1 only (cloud/SaaS-centric), or both together in "connected mode" for phased migration/mixed environments (e.g., Site Engine for switches, cloud for APs). Switching between air-gapped ↔ connected mode is a few clicks, no hardware/firmware change, no new subscription.
+3. **CLI provisioning remains valid regardless of which management tool (if any) is in use** — consistent with how this lab has operated so far.
+4. **Site Engine + SD-WAN/FE integration is a documented, supported combination**: Site Engine can display tunnels extending fabrics through SD-WAN, report tunnel failures between SD-WAN devices, and let the operator jump from Site Engine into the SD-WAN appliance's 360 view to troubleshoot. New FE mechanism detail (from SD-WAN advanced config deck): **SD-WAN allocates a /29 subnet per site from the Fabric Extend IP network**, and IPEs use **LLDP** to hand the Fabric switches their IP/gateway info + the destination IPs needed to auto-build the VXLAN tunnels — i.e., the FE tunnel addressing is SD-WAN-automated, not manually configured on the VOSS switch in this model.
+
+**Open item (unconfirmed in KB, flagged rather than guessed):** the exact IP-reachability path Site Engine itself needs to manage a remote BEB switch sitting behind SD-WAN/IPE at Karl's network — i.e., whether Site Engine reaches the switch's mgmt IP in-band over the same FE/SD-WAN tunnel, or needs a separate OOB path. Not stated explicitly in any retrieved source. Would need direct testing or an Extreme docs/GTAC follow-up to confirm.
+
+**Status: user is studying/validating the mental model, not requesting a hands-on build.** Do not push toward Phase 1 hardware execution or further unprompted FE research — continue only when user asks a further question or explicitly says to resume building.
+
+### Same session, extended to a hypothetical client scenario: EP1-only (no Site Engine) Cisco→Fabric hub-and-spoke hospital migration
+
+User proposed a professional/client-facing narrative: HQ + many remote sites (hospital), migrating from Cisco, using **EP1 only** (no Site Engine) — story = CLI builds core+BEB, then EP1 takes over ongoing management.
+
+**KB-confirmed, refines but does not overturn the user's narrative:**
+- Extreme's own documented **hub-and-spoke Fabric Extend reference architecture** (User Guide + Advanced Presentation deck) is built around **Site Engine / "Fabric Extend Manager"**, not EP1 — Main/Hub site (e.g., 2 IPEs) + Branch spokes (e.g., 1 IPE), using VSP7400/VSP4900/5720/Fabric IPsec Gateway/XA1400-series hardware. **This means "EP1 takes over" is accurate for ongoing visualization/AI-ops once the fabric exists, but the FE tunnel provisioning/management layer itself is documented as a Site Engine capability, not an EP1 one** — going EP1-only likely means CLI (not a GUI tool) also carries the FE tunnel build, not just BCB/BEB/VSN config.
+- **IPsec reminder still applies**: if hospital remote sites need FE over public/uncontrolled WAN, IPsec-based FE requires the separate Fabric IPsec Gateway appliance (5720-24MXW/48MXW, 7520, 7720, VSP4900, VSP7400) — cheaper/smaller edge switches at spoke sites may not qualify; VXLAN-only FE needs a private/dedicated WAN underneath.
+- **Cisco migration can be phased** — KB confirms "migrate at your own pace" messaging, and EP1 + Third-Party Management Engine (TPME) can manage existing Cisco gear centrally alongside new Extreme fabric during transition (useful for a "HQ core swapped first, spokes migrated over time, old Cisco visible in EP1 meanwhile" narrative).
+- **Healthcare proof points found**: Concord Hospital (bridged legacy network with new Extreme fabric, zero downtime cutover), CHU Besançon (security + operational continuity), ZOL (schedule confidence, isolated/segmented environments) — usable as case-study backup for a hospital pitch.
+- SPB fabric failover **sub-200ms** — relevant resiliency stat for a multi-site hospital story (life-safety systems tolerance for network reconvergence).
+
+**Not a real build — scoped as a hypothetical/consulting narrative, not this lab's hardware.** No CLI executed, no memory of a new hardware project created.
+
+**Follow-up: user confirmed hospital scenario has dedicated circuits (MPLS/leased line) from every remote site to HQ — resolves the IPsec question for this narrative.** KB confirms: on a private/dedicated WAN (MPLS, Ethernet, leased line), VXLAN-only Fabric Extend is fully sufficient — IPsec is not required because the SP WAN is already private with built-in security. Practical effect: the pricier **Fabric IPsec Gateway appliance requirement drops out of this design entirely** — any Fabric Connect-capable switch (5320/5420/5720/7520/7720 family) can serve as the branch-side tunnel endpoint directly, widening the switch choice at spoke sites. Separately noted: KB references an **ExtremeAccess Platform 1400 (XA1400)** appliance in SP-WAN branch datasheets — this appears tied to the SD-WAN/IPE overlay use case specifically, not a hard requirement for a straight dedicated-circuit VXLAN FE design; not yet confirmed whether it's optional or exclusive to the SD-WAN path for this scenario.
+
+### Fundamentals clarified (same session): CLI-only single-remote-site migration, and terminology fix on IPE
+
+**User confirmed the fork:** with a dedicated WAN, for a first "migrate one remote site" interop test, **neither Fabric Extend nor an SD-WAN/IPE appliance is required** — just deploy Fabric Engine on the clean VOSS switch, build SPB/IS-IS/I-SID via CLI, and connect its uplink to the existing dedicated-WAN circuit as a plain legacy VLAN edge handoff (per Extreme's own Best Practices deck: "start by replacing one existing switch with 'legacy' up-links to the rest").
+
+**Terminology correction (user-initiated):** "IPE" is not a separate technology paired with SD-WAN — **IPE is the ExtremeCloud SD-WAN appliance hardware family itself** (KB-confirmed models: `ipe-30so` 250Mbps, `ipe-30ax` 500Mbps, `ipe-40ax-v2` 750Mbps, `ipe-420ax` 1Gbps — Branch-XS/M/DC-S tiers). SD-WAN is the service; IPE is the box that runs it. Corrected in `reference_ep1_extreme_platform_one.md`.
+
+**Production open-internet path — two distinct architectures with different hardware implications (KB-confirmed):**
+1. **Native FE-IPsec (no SD-WAN)** — the fabric switch itself terminates IPsec. Requires **Fabric IPsec Gateway** capability — only on 5720-24MXW/48MXW, 7520, 7720, VSP4900, VSP7400. The 5320 is excluded from this path (reconfirms Sept 1 finding).
+2. **Fabric-over-SD-WAN (via IPE)** — KB explicit: *"Fabric Extend VXLAN tunnel forms over SD-WAN IPsec tunnels"* / "A single VXLAN tunnel is passing MAC-in-MAC based encapsulation for SPBM; Multiple IPsec tunnels provides resilience." Here the **IPE appliance itself supplies the IPsec overlay**, and Fabric Extend's VXLAN tunnel rides inside it — so the switch only needs VXLAN/FE capability (which the 5320 already has), not IPsec-Gateway-class hardware. **This means an IPE pair at each end is how a 5320 can participate in an open-internet FE deployment, sidestepping the Fabric-IPsec-Gateway hardware tier.**
+
+**Caveat flagged, not asserted as fact:** KB confirms the stacking architecture (FE-VXLAN over SD-WAN-IPsec) but does not explicitly state this removes the Fabric-IPsec-Gateway restriction for the 5320 by name — this is a reasonable architectural inference, not a direct product statement. Recommend a docs/GTAC check before treating this as a production design decision.
+
+**Correction (sharper primary-source check, same session): "no appliance in the path" is wrong — Fabric IPsec Gateway is always required for FE-over-IPsec, on every supported platform.** Fabric Engine 9.3 User Guide Table 120 (Fabric Extend product support):
+- **5320: Not Supported** for FE-over-IPsec — full stop, not just "needs a gateway."
+- 5720-24MXW/48MXW (FE 8.7+), 7520 (FE 8.10+), 7720 (FE 8.10+), VSP4900-12MXU-12XE/24XE (VOSS 8.3+), VSP7400 (VOSS 8.2+): all documented as **"Supported using Fabric IPsec Gateway"** — no platform shows native/appliance-free IPsec termination. Solution-brief marketing language ("the switch can use IPsec tunnels...") glosses over this; the User Guide table is authoritative.
+- **New detail:** Fabric IPsec Gateway is a **VM** (2 CPU cores, 4GB RAM, 1 vport, min. 10GB SSD) providing FE tunnel aggregation + fragmentation/reassembly + IPsec encryption — not necessarily separate hardware. 5720 models need a physical SSD module installed to host it via Extreme Integrated Application Hosting.
+- This sharpens (does not overturn) the earlier caveat: 5320's "Not Supported" is specifically for the native *Fabric-Extend-over-IPsec* feature (switch + Fabric IPsec Gateway VM pairing). Whether that also blocks the separate FE-VXLAN-over-independently-SD-WAN-encrypted-WAN architecture remains unconfirmed either way — still flagged as open, still recommend GTAC/SE confirmation before a production decision.
+
+### RS1 cutover mechanics + migration sequencing (same session)
+
+**Scenario:** Cut over one BEB at RemoteSite1 (RS1) + new EN APs, no NNI at this site (no other Fabric Engine neighbor yet), uplink runs to dedicated WAN or internet back to Cisco Core at HQ.
+
+**Cisco-side config — confirmed required, but ordinary, not Fabric-aware:** KB explicit: *"the third-party core does not participate in Fabric or Fabric Attach signaling... requires conventional legacy configuration on the uplink, specifically matching VLANs at both ends of the link."* Cisco just needs a standard 802.1Q trunk (or routed peer) matching VLAN IDs — same as bringing up any new vendor switch. No Fabric-specific Cisco config exists or is needed.
+
+**Two things on the RS1 box are separate:** (1) SPB/IS-IS/BVLAN + I-SID-to-port bindings = internal segmentation, valid to configure even with zero NNI neighbors (dormant until a peer exists). (2) The WAN-facing uplink to Cisco HQ = a plain UNI/legacy-edge VLAN-tagged port, NOT an NNI — unrelated to the BVLAN/IS-IS config.
+
+**Migration sequencing — KB confirms no universal rule, validates a parallel-track approach:**
+- Pattern 1 (edge-first, what RS1 already is): *"Start by replacing one existing switch with legacy uplinks to the rest. Then replace switches one at a time, connected to the first switch and so on."* Needs zero fabric core anywhere yet.
+- Pattern 2 (parallel core): *"build the new fabric core in parallel to the existing core... trunk VLANs, keep routing on existing core initially, then move access and flip IP gateways gradually"* — explicitly called the gentle/gradual/reversible path.
+- KB explicit: *"No universal rule that core must always be replaced first."*
+- **Recommendation given (not yet acted on):** treat RS1 legacy-edge cutover and EN_Fabric_Core lab POC as parallel, non-blocking tracks — RS1 ships now as a standalone win; the core POC de-risks the later "join RS1 into a real fabric" step before touching live HQ Cisco core.
+
+### Lab POC design: two-switch MyLab/RemoteLab, ZTF-vs-FE-both-ends-required correction (same session — still concept/planning discussion, no hardware touched)
+
+**Scenario:** two VOSS switches at separate physical locations for a lab POC — BEB_VOSS_MyLab and BEB_VOSS_RemoteLab (RemoteLab has full SPBM/IS-IS/I-SID setup). User asked whether MyLab can stay "vanilla," inheriting ZTP/ZTF from RemoteLab, needing only new I-SIDs if any, with no SD-WAN/IPE between them.
+
+**Correction confirmed by KB (2 targeted queries, cross-checked against a pasted "buddy" AI response making the same claim):** MyLab is **not** vanilla. Zero Touch Fabric/Auto-sense's zero-config inheritance is LLDP-driven, and LLDP is a local-link protocol — KB explicit: *"Auto-sense is a port-based functionality... based on LLDP events"* and separately, for the SD-WAN case, *"the Fabric switch uses LLDP subtype TLV 7 to tell the ipe about which logical IS-IS interfaces have formed adjacency"* — i.e. LLDP operates between a switch and its **directly attached** neighbor (physical port or local SD-WAN/IPE appliance), never end-to-end across the Fabric Extend IP tunnel itself. KB does not show LLDP/ZTF adjacency traversing the WAN tunnel.
+
+**Both ends need explicit config — confirmed exact CLI sequence (Fabric Engine 9.3 User Guide):**
+1. `ip-tunnel-source-address <local-IP> vrf fe`
+2. `logical-intf isis <1-255> dest-ip <peer-IP> mtu <value> [name WORD]` — KB-sourced worked example uses `mtu 1500` on both sides (not the ≥1594 floor cited earlier this session as a minimum — 1500 appears in Extreme's own reference config, so treat 1594 as a safety margin claim needing reconciliation, not a hard KB-confirmed number)
+3. `isis`, `isis spbm <1-100>`, `isis enable` on the logical interface
+4. Same 4 steps mirrored on the peer switch, with source/dest IPs swapped — KB explicit: *"logical ISIS interface adjacency requires configuration on both sides."*
+
+So both MyLab and RemoteLab need identical SPBM/IS-IS/BVLAN + FE-tunnel scaffolding — no shortcut where one side stays blank.
+
+**Where the user's instinct WAS correct — I-SID provisioning specifically:** once the FE logical IS-IS adjacency is up, ordinary IS-IS LSDB flooding propagates existing I-SIDs automatically. MyLab does not need to redeclare RemoteLab's existing I-SIDs. MyLab only needs a **new** I-SID definition if it's originating a new service; it still needs a local `vlan i-sid` binding statement to attach any I-SID (new or inherited) to its own local UNI ports.
+
+**SD-WAN/IPE confirmed NOT needed** for this two-switch CLI-driven lab POC — the entire tunnel/logical-interface/MTU/SPBM sequence above is native Fabric Engine/VOSS CLI; IPE only adds automated tunnel orchestration + app-aware WAN routing, neither required for a point-to-point lab test. Consistent with everything else established this session.
+
+**Status: still concept/planning discussion — no hardware touched, no lab build started from this exchange.**
+
+### POC architecture with a real "core": BCB/BEB roles + Karl's core + final topology (same session, still concept/planning)
+
+**User's real goal (4 parts):** (1) IPEs to abstract WAN complexity for the client demo, (2) Fabric-over-EXOS/traditional coexistence at the edge — build the core once, never touch it, (3) demonstrate EP1 managing/visualizing the fabric, (4) a genuine core topology — "two BEBs separated over WAN is not good enough."
+
+**Key KB finding: BCB vs BEB is a configuration role, not dedicated hardware or a license.** Fabric Engine 9.3 User Guide, verbatim: *"Configure all virtualization services on the BEBs at the edge of the network. There is no provisioning required on the core SPBM switches."* and *"A BEB performs the same functionality as a BCB, but it also terminates one or more VSNs. A BCB does not terminate any VSNs."* Any Fabric Engine-capable switch (5320, 5720, 7520, 7720, VSP) can be either role. "Building a core" = configuring SPBM/IS-IS with NNI-only interfaces and deliberately binding zero I-SIDs — not a separate procedure or SKU.
+
+**Open KB gap, explicitly flagged (not resolved either way):** no explicit statement found on whether an FE tunnel can terminate directly on a bare BCB. Strongest signal found: the only documented I-SID-capable/service-gateway role is the BEB, and Extreme's own SD-WAN reference topology labels the hub-side FE endpoint **"BEB/BCB"** (combined role on one box), not a standalone pure-BCB. Working assumption: FE tunnel adjacency itself will come up fine on a bare BCB (IS-IS/SPBM + IP reachability is all FE needs), but the *service* (I-SID/VSN) has nowhere to terminate unless that same node also has UNI ports + an I-SID binding — i.e., functionally becomes a BEB/BCB combo, matching Extreme's own reference pattern.
+
+**Finalized topology (Karl confirmed his core is a real, physical, single VOSS switch — assume one BCB, not virtual/EVE-NG):**
+
+| Node | Status | Role |
+|---|---|---|
+| Core_BCB | Already built (Karl's) | Real VOSS, SPBM/IS-IS, NNI-only, zero I-SIDs |
+| HQ_BEB | To build — needs a device Karl may or may not be able to provide | Local physical NNI to Core_BCB + UNI to APs/legacy EXOS + uplink to HQ_IPE |
+| HQ_IPE | SD-WAN appliance | FE tunnel automation toward Remote |
+| Remote_IPE | SD-WAN appliance | Mirror of HQ_IPE at MyLab/RS1 |
+| Remote_BEB | To build (user's 2nd physical 5320) | FE tunnel back to HQ side, SPBM/IS-IS + I-SIDs, UNI to local APs |
+
+Hardware math resolved: with Karl's Core_BCB covering the core role, the user's 2 physical 5320s were expected to cover HQ_BEB + Remote_BEB — no 3rd/4th physical unit or EVE-NG virtual node needed, *provided* a dedicated HQ_BEB device materializes.
+
+**HQ_BEB ↔ Core_BCB local NNI is a genuine physical adjacency** — same case as the earlier Second_BEB exchange, so Zero Touch Fabric/Auto-sense applies here: HQ_BEB could boot near-vanilla and learn the B-VLAN from Core_BCB automatically rather than hand-matching it.
+
+**Follow-up resolved: "can I skip a dedicated HQ_BEB and connect HQ_BCB directly to Remote_BEB via the IPEs?"** Answer: the FE tunnel/adjacency will work fine terminating directly on Core_BCB — that part doesn't require a separate BEB. But if Core_BCB stays a pure BCB (no UNI, no I-SID), Remote's services have no HQ-side termination point — usable only for Remote-to-Remote traffic (e.g. Remote_BEB ↔ a second remote BEB), not anything reaching HQ resources. Two ways to get real HQ-side service termination without new hardware: (1) ask Karl to add UNI ports + an I-SID binding directly onto his existing Core_BCB box, turning it into a combo BEB/BCB on the same hardware — this exactly matches Extreme's own SD-WAN reference "BEB/BCB" hub pattern; or (2) keep Core_BCB untouched and source a separate physical HQ_BEB device.
+
+**Status: still concept/planning discussion — no hardware touched. Open action item: user to ask Karl whether (a) a dedicated HQ_BEB device is available, or (b) Karl is willing to add UNI/I-SID config directly onto his existing Core_BCB box.**
+
+### SD-WAN/IPE fan-out + internet egress from a bare BCB (same session, still concept/planning)
+
+**One hub IPE can serve multiple remote sites — confirmed.** KB: *"Automated Hub-and-Spoke Topology... automatic tunnels set up between spokes and hubs"* and *"a Hub ipe can route traffic between Spokes."* One HQ_IPE does not need to be replicated per remote site added later.
+
+**Every site still needs its own local IPE — confirmed.** KB reference topology: *"a Hub (DC, with 2 ipes) and two Spokes (a Branch Site, with 1 ipe, and Headquarters, with 2)"* — reason given: *"Each ipe is paired with its own Fabric switch"* (1:1 per-site pairing with the local BEB, not a shared/centralized service). Unconfirmed/flagged: whether the hub's "2 ipes" in that example is a mandatory redundancy requirement or just Extreme's reference-design choice.
+
+**Minimal 5-node POC confirmed as sufficient to test the model:** HQ_BEB, HQ_BCB (Karl's), HQ_SDWAN, Remote_SDWAN, Remote_BEB.
+
+**Internet/external egress — confirmed structurally impossible from a bare BCB, reinforcing why a dedicated HQ_BEB matters.** KB: *"Core nodes act as pure BCBs that simply transport VSN traffic"* — no C-VLAN, no IP interface, no default gateway; a BCB cannot hand off to any non-fabric device, internet included. Two documented exit mechanisms, both requiring a BEB:
+1. **IP Shortcuts** — *"the default router... uses IP shortcuts to IP route over the SPBM core"* — fabric acts as an L3 routed core, BEB is the default router for endpoints, no I-SID/VSN needed for that traffic.
+2. **L3VSN** — an I-SID carries a routed IP subnet; a BEB terminates it and hands off routed traffic to non-fabric infrastructure.
+
+Both mechanisms land the handoff at a BEB's UNI port to a non-SPBM device (firewall/router/ISP edge) — KB never associates this handoff with the BCB core. Concrete implication for the POC: internet access for either site must be homed off HQ_BEB (or Remote_BEB, if that site needs local breakout) via a UNI port to the existing router/firewall, using either IP Shortcuts or an L3VSN — never off Core_BCB directly. This is the same root cause as the earlier "HQ_BCB→Remote_BEB direct via IPEs" gap: fabric adjacency works fine on a bare BCB, but any real service or external handoff needs a BEB somewhere in the path.
+
+**Status: still concept/planning discussion — no hardware touched.**
+
+### MyLab 2-switch topology CLI + the VSN-to-internet mechanics gap, resolved (same session, still concept/planning)
+
+**Scenario:** MyLab has 2 physical VOSS switches. Remote_BEB1 already connects to Karl's Core_BCB via local IPE/SD-WAN. Remote_BEB2 NNIs locally to BEB1, hangs its own APs (FA), and gets direct internet on Port-1.
+
+**Remote_BEB1_IPE config — KB-confirmed pieces:**
+- Auto-Sense on the port facing the IPE: `interface gig 1/x` then `auto-sense enable [convert-to-config]`; `show interfaces gigabitethernet auto-sense 1/x` should report state `SD-WAN` once the IPE is LLDP-detected.
+- With Auto-Sense/SD-WAN engaged, the tunnel/logical-IS-IS-interface build is expected to be automatic (per the LLDP mechanism logged earlier this session).
+- Manual fallback/reference sequence (same as logged previously): `ip-tunnel-source-address ... vrf fe` → `logical-intf isis <1-255> dest-ip <peer> mtu <val>` → `isis` / `isis spbm <id>` / `isis enable`, plus standard base SPBM/IS-IS bring-up.
+
+**Remote_BEB2_Internet_Port1 — the VSN-to-internet hand-off gap, resolved into 3 distinct steps (not one mechanism):**
+- **Step A — VSN termination (I-SID → C-VLAN), KB-quoted:** *"i-sid 20202 with c-vid 202 on port 1/5 and a VLAN interface with IP address 10.1.1.2/24"* — the I-SID decapsulates into a C-VLAN with its own ordinary VLAN IP interface, which is by default in the GRT. Once traffic is on that VLAN IP interface, it is no longer VSN/fabric traffic.
+- **Step B — internet egress, KB-quoted concept (exact full CLI sequence not found, flagged as gap):** Port-1 as a brouter port (*"the slot and port number of the brouter port identifies brouter interfaces"*) with its own IP + a static default route (*"to configure a default static route, supply a value of 0 for the prefix and the prefix length"*), also in the GRT.
+- **A→B connection — NOT an explicit single KB statement, this is my own synthesis connecting two independently confirmed facts:** since both the C-VLAN IP interface (Step A) and the brouter port (Step B) sit in the same GRT on the same switch, ordinary IP routing connects them with no extra config — KB: *"routed traffic in the GRT follows next-hop out of the routed interface context."* If only BEB2's own local clients need internet, Steps A+B alone are sufficient.
+- **Step C — sharing that egress with other switches (e.g. BEB1), KB-confirmed exact CLI:**
+```
+interface loopback 1
+ip address <loopback-IP>/32
+router isis
+ip-source-address <loopback-IP>
+spbm <id> ip enable
+redistribute direct
+redistribute direct enable
+redistribute direct metric 1
+exit
+isis apply redistribute direct
+```
+Validated by a direct best-practice quote: *"In cases where the Internet connection is single-homed, to reduce the size of the routing table, as a best practice, advertise Internet routes as the default route to the IGP"* — confirms `redistribute direct` (default route only) is the correct shape for Port-1's single-homed ISP link, not a full route dump into the fabric.
+
+**Net resolution of the user's stated gap ("how the BEB terminates the VSN and hands over to the internet, I cannot [architect]"):** there is no single "hand-off" mechanism — it's two independent, ordinary GRT-routing steps (I-SID→C-VLAN, and brouter-port→default-route) that happen to coexist on the same switch and therefore route to each other for free; IS-IS/IP-Shortcuts redistribution is a separate, optional third step, needed only when a different switch must share that same egress.
+
+**Status: still concept/planning discussion — no hardware touched.**
+
+**User's business rationale, confirmed/clarified (same session):** the case for VOSS over EXOS in the client-migration story isn't "less core work during buildout" — it's ongoing operational burden post-deployment for a small IT staff. Once VOSS/Fabric is stood up, edge changes (new AP, new I-SID, new VLAN) never require touching the core (edge-only provisioning, confirmed earlier this session). EXOS/VLAN sprawl requires hop-by-hop touching of every intermediate switch on every edge change. User's framing: "EXOS is more work after and at deployment for a small IT_Staff to manage. VOSS, once up, is superior." Worth reusing as a concrete selling point (low ongoing-maintenance burden for small IT teams) in the hospital hub-spoke client scenario logged earlier this session.
+
+### IQController vs IQEngine terminology + fact-check of a pasted 3rd-party dialogue on PPSK/UZTNA I-SID mapping for single-SSID medical IoT (new session, Sept 2)
+
+**Terminology, KB-confirmed:**
+- **IQEngine** = the AP operating system/software persona running on the access point itself (formerly HiveOS) — not a management platform.
+- **IQController / ExtremeCloud IQ Controller / XIQ-C** = a separate, centralized **controller** platform for on-prem campus deployments (airgap licensing, tunneling, distributed/centralized data planes, integrates with Site Engine/ExtremeControl/ExtremeAnalytics/AirDefense) — a different product line from cloud-managed EP1/XIQ entirely.
+These are not two names for the same thing and not interchangeable — one is AP firmware, the other is an on-prem controller product.
+
+**Fact-check of user's pasted dialogue (a different AI's multi-turn answer on hospital single-SSID medical-IoT segmentation via PPSK):** that transcript made three successive attempts at describing an EP1 UI workflow (VLAN Profile → Topology Type "Fabric Attach" → I-SID field → User Profile → PPSK User Group → SSID), with the user confirming two of the three attempts were wrong ("This does not exist," "There is no provision in EP1 for this"). KB re-check of the third/final claim, this session:
+- **CONFIRMED real, KB-quoted:** *"The Fabric Attach topology type is similar to B@AP with the added I-SID parameter"* and *"I-SID — For Fabric Attach. A unique VLAN identifier and a unique I-SID (service identifier). The I-SID range is (0-15999999)."* So a VLAN Profile with Topology Type "Fabric Attach" exposing an I-SID field is real and documented (ExtremeCloud IQ Controller v10.12.01 User Guide; also present in EP1/XIQ-New's device VLAN+I-SID dropdown workflow).
+- **NOT confirmed — the missing link:** tying that I-SID/VLAN-Profile mechanism directly to a **PPSK User Group** on an SSID. KB confirms PPSK user groups exist and are configured at the SSID level (Configure → User Management → User Groups), and confirms different user profiles/PPSKs can be assigned per-client on the same SSID — but no KB excerpt shows an end-to-end "PPSK User Group → I-SID" binding procedure. VLAN/topology assignment in the KB is described as flowing through a **configuration Profile** (network + role → Profile → VLAN), not directly through the PPSK group object. Net: the I-SID field itself is real; the specific PPSK-group-to-I-SID wiring claimed in the pasted transcript is unverified and should not be treated as confirmed.
+
+**Open, not yet addressed:** the user's own live/concrete issue — described only as "an issue with IQEngine with the VLAN-i-SID mapping" — has no specifics captured yet (no error text, no `show fa assignment`/EP1 screenshot, no switch/AP identified). Needs the user's actual symptom before this can be diagnosed.
+
+**Status: concept/fact-check discussion — no hardware touched yet this sub-thread.**
+
+### LIVE HARDWARE SESSION, Sept 2 — KhKLab-SW-01 FA/FE/Auto-Sense diagnosis + working 3-in-1 demo capture
+
+**Topology confirmed live:** `KhKLab-SW-01` (SW1) — port 1/1 → SD-WAN appliance → RDU-Core (`FishBowl-Fabric_Core-5720-01`, sysID e0a1.29fc.4084); port 1/10 → direct NNI → SW2 (`5320-16P-2MXT-2X-FabricEngine`, sysID d8e0.1637.6c84); ports 1/3 and 1/7 → AP3000s.
+
+**Fabric Attach qualification, resolved against KB:** neither the SD-WAN/FE link (port 1/1) nor the SW1↔SW2 NNI (port 1/10) is Fabric Attach — both are genuine Fabric NNI / SPBM IS-IS adjacencies between fabric-native devices. KB: *"Fabric NNI (Link between fabric devices)"* vs *"Fabric Attach NNI (Link to Fabric Attach)"*; FA is specifically for non-SPB-capable edge devices over a Switched UNI. FA only qualifies on 1/3 and 1/7 (the AP-facing ports).
+
+**Root-cause diagnosis walked live, AP3000 not getting proper FA mapping:**
+1. `show fa elements` initially showed STATE `T / D` (Tagged / **AutoConfig Disabled**) on both 1/3 and 1/7, despite successful discovery + auth (`successAuth`/`successAuth`). KB: STATE legend = Tagging/AutoConfig; `D` = AutoConfig disabled per-port, independent of the physical port itself.
+2. Fix applied: `fa port-enable 1/7` and `fa port-enable 1/3`. Confirmed via `show fa interface port X`: SERVER STATUS flipped to `enabled`. (MGMT ISID/MGMT CVID stayed `0/0` on that command — that field is FA's own management-plane binding, separate from the per-client dynamic mapping; not a fault indicator by itself.)
+3. Real confirmation came from `show fa assignment`: both ports show `active`/`client`-origin I-SID assignments — FA is mechanically working end-to-end (discovery → auth → auto-provision).
+
+**Unresolved real issue found, still open:** `show fa assignment` shows **1/3 → I-SID 143154** (VLAN 154, generic name `ISID-143154`) vs **1/7 → I-SID 144154** (VLAN 154, named `BOBKit-4-WirelessUser-isid`). Same VLAN tag, two different I-SIDs — since I-SID (not VLAN) is the actual fabric isolation boundary, these two APs are landing in two separate, non-communicating VSNs despite sharing a VLAN number. Likely cause (inference, not KB-confirmed): the two APs are bound to two different EP1 Network Policies/VLAN Profiles, each independently specifying its own Fabric-Attach I-SID for "VLAN 154" instead of a shared value. **Still waiting on user to confirm intent** (shared single VSN for roaming vs. deliberate per-AP isolation) before prescribing the EP1-side fix.
+
+**Full 3-mechanism demo, captured live and working simultaneously:**
+- `show interfaces gigabitethernet auto-sense 1/1-1/10` → `1/1 = SD-WAN`, `1/10 = NNI-ISIS-UP`, `1/3 = FA`, `1/7 = FA` (matches KB-documented state names exactly, though this build reports generic `FA` rather than the `FA-WAP` sub-type shown in some doc examples).
+- `show isis adjacencies` → two simultaneous ACTIVE Level-1 adjacencies: `SD-WAN-1` to FishBowl-Fabric_Core-5720-01 (Fabric Extend, uptime 05:46:06) and `Port1/10` to SW2 (plain NNI, uptime 00:55:16). Best single screenshot for "FE and local NNI are both just IS-IS adjacencies to the fabric."
+- `show isis lsdb` → 14 LSP entries across **5 systems** in the HOME area: TSLab-SW-01, SW2, KhKLab-SW-01, FishBowl-Fabric_Core-5720-01, Fishbowl-SW-01 — proves full fabric-wide LSDB visibility beyond just the two direct neighbors (SPB flooding reaching non-adjacent nodes).
+- `show isis spbm` SMLT info shows `SMLT-SPLIT-BEB: primary`, all-zero virtual B-MAC, no peer system ID — default/inactive SMLT state (no peer configured), unrelated to the FE/FA/Auto-Sense demo, not a concern.
+
+**New issue opened at session end, NOT yet diagnosed:** user reports the AP plugged into port 1/7 is now showing **down** (physical/link state, not the FA mapping issue above — that AP was FA-active moments earlier in this same session). No diagnostic commands run yet on this. Next step: get `show interfaces gigabitethernet 1/7` (or equivalent port/link-state command) and current `show fa elements`/`show fa interface port 1/7` to see whether this is a physical link-down, a PoE issue, or FA state regression.
+
+**Status: live hardware session, actively in progress — AP 1/7 link-down issue is the open thread.**

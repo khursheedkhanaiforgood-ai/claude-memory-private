@@ -841,3 +841,47 @@ These are not two names for the same thing and not interchangeable — one is AP
 **New issue opened at session end, NOT yet diagnosed:** user reports the AP plugged into port 1/7 is now showing **down** (physical/link state, not the FA mapping issue above — that AP was FA-active moments earlier in this same session). No diagnostic commands run yet on this. Next step: get `show interfaces gigabitethernet 1/7` (or equivalent port/link-state command) and current `show fa elements`/`show fa interface port 1/7` to see whether this is a physical link-down, a PoE issue, or FA state regression.
 
 **Status: live hardware session, actively in progress — AP 1/7 link-down issue is the open thread.**
+
+### Naming reconciliation, Sept 5 (post-summary continuation)
+- User confirmed the "5320 Onboarding / Horizon Lab" project described in `/Users/khukhan/Downloads/CLAUDE.md` (SW1=EXOS 192.168.0.28, SW2=VOSS 2026-05-01 conversion, IPE-40AX-V2, I-SIDs 15999999/16777001) is **the same physical lab** as tonight's KhKLab-SW-01 sessions — not a separate/parallel thread. Treat both contexts as one continuous project history going forward.
+- **DISPUTED, do not rely on this:** the claim below (that `sw2_running_config_20260501.txt` is SW1's config) was written after reading that file, but the user then said "THIS IS INCORRECT FILE" without giving further detail before moving on to a fresh capture instead. Treat this file's identity as unresolved, not confirmed:
+  - ~~User confirmed `/Users/khukhan/Downloads/sw2_running_config_20260501.txt` — despite its filename — is actually **SW1's** running-config capture from May 1 2026 (CLI prompt read `KhKLab-SW-01`, matching).~~ **Retracted per user correction — re-verify before citing.**
+
+### LIVE HARDWARE SESSION, Sept 5 (same day, later continuation) — fresh capture, global Auto-Sense policy found, AP-flap traced to stuck EP1 push
+**Capture:** `/Users/khukhan/lab-journal/sw1_capture_20260905.log` (macOS `script` + `screen` over `/dev/cu.usbserial-A9XH7AI0`, 115200). First connect attempt failed (`Resource busy`/`could not find a PTY` — stale process held the port, killed and retried). Identity self-confirmed in the live output itself (`prompt "KhKLab-SW-01"`, `sys-name "KhKLab-SW-01"`) — not dependent on filename, unlike the disputed file above.
+
+**Full VLAN/I-SID table confirmed clean:** VLAN153→I-SID144153 (AP-Management-isid, gw 10.153.4.1/24), VLAN154→I-SID144154 (WirelessUser-isid, gw 10.154.4.1/24), VLAN155→I-SID144155 (Camera-isid, gw 10.155.4.1/24), VLAN156→I-SID144156 (Data-isid, gw 10.156.4.1/24), VLAN4048→I-SID15999999 (onboarding).
+
+**New find — Global Auto-Sense Configuration (Phase II) block, not seen in any prior review:**
+```
+auto-sense fa proxy-no-auth i-sid 144156
+auto-sense fa camera i-sid 144155
+auto-sense fa wap-type1 i-sid 144153
+auto-sense fa wap-type1 eapol status authorized
+auto-sense data i-sid 144156
+auto-sense onboarding i-sid 15999999
+```
+This **reframes the Sept 2 143154-vs-144154 mismatch**: the switch's own static default for any `wap-type1` (AP) device is **144153**, not 144154. 143154 (port 1/3's live value) matches none of the five configured I-SIDs — now looks like a transposition of **144153**, not a collision with 144154 as previously guessed. Live `show fa assignment` shows Origin: `client` — the AP itself requests 143154, overriding the switch default — so any fix belongs in the AP's EP1/XIQ network policy, not switch CLI. Not yet actioned, inference only.
+
+**AP flap resolved to more specific finding — same physical AP, two ports:** live syslog during capture:
+```
+20:25:54  Link Down(1/7)   — FA element deleted, System ID 00:e6:0e:55:66:80:00:00:00:00
+20:27:18  Link Up(1/11)    — same System ID rediscovered, successAuth
+20:32:46  Link Down(1/11)  — same System ID deleted again
+(final)   Link Up(1/11)    — same System ID again, ELEM AUTH successAuth, ASGN AUTH none
+```
+Same AP bounced 1/7→1/11, never reaching an active FA I-SID assignment on either port. Port 1/3's AP (different System ID, `...56:57:80...`) stayed active/stable the whole time. Rules out "bad port 1/7" as sufficient explanation.
+
+**New symptom, diagnosed live — EP1 policy push to AP on 1/11 stuck at 34%.** Goal was to put that AP on I-SID 144154/VLAN154 for user traffic. Root cause confirmed: same link instability above — `ASGN AUTH: none` on 1/11 means FA never completes provisioning, so the CAPWAP session backing the policy push never stabilizes either. Diagnostics run:
+- `show poe-port-status 1/11` → `DeliveringPower`, Class4, 32W limit, no fault — **PoE is healthy**.
+- `show interfaces gigabitEthernet 1/11` → up/up, full duplex, 1000Mbps — **current link params look clean**.
+- `show link-flap-detect` → global policy only (`Auto Port Down: enable`, 20 flaps/60s threshold) — not yet tripped, no per-port flap counter surfaced.
+- Port FDB for 1/11 shows AP MAC `00:e6:0e:55:66:80` **already learned on VLAN153** (AP-Management) despite no active FA assignment — there IS a basic L2 path, just not one that holds long enough for FA to promote it to "active" before the link drops again.
+
+**Status at session end (Sept 5, ~21:10 EDT): live hardware session paused, user said "OK We stop here."** Open items for next session:
+1. Root cause of the AP flap still undiagnosed — agreed next step (not started): check AP's own side (power-cycle history/uptime/logs) or swap cable/port as a control test.
+2. Whether AP on port 1/3's EP1 policy should be corrected from I-SID 143154 → 144153 — inference only, not confirmed or actioned.
+3. May 1 file identity dispute above — needs re-verification before ever citing again.
+4. `sw1_capture_20260905.log` ends abruptly (`exit`/`exit`/`exit` then a bare `1`, no `Script done` trailer) — may not have closed cleanly; worth checking if there's more to recover.
+
+EOD: `lab-journal/khklab_sw1_ap1-11_diagnosis_20260905.html` (pending push).

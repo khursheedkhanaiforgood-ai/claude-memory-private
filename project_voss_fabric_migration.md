@@ -884,4 +884,23 @@ Same AP bounced 1/7→1/11, never reaching an active FA I-SID assignment on eith
 3. May 1 file identity dispute above — needs re-verification before ever citing again.
 4. `sw1_capture_20260905.log` ends abruptly (`exit`/`exit`/`exit` then a bare `1`, no `Script done` trailer) — may not have closed cleanly; worth checking if there's more to recover.
 
+## Sept 7 2026 — SW1↔SW2 NNI live, mobile-user DHCP works via SW2 but not via SW1 (traced back to port 1/11)
+
+**New topology change confirmed by user:** SW2 (the second physical 5320 FabricEngine) is now connected to KhKLab-SW-01 (SW1) via direct NNI. SW2's VLAN_1 management gets DHCP through the home router (192.168.0.x) — separate from the fabric. On I-SID **144154**/VLAN154 (WirelessUser), an AP attached to SW2 gets DHCP for its mobile/wireless users — **confirmed working** by the user ("I have tested the DHCP is there for the user... I believe I am carrying traffic").
+
+**The puzzle:** the same scenario — AP needing mobile-user DHCP on I-SID 144154 — does **not** work when the AP is attached directly to SW1 (KhKLab-SW-01). User confirmed SW1 is the correct identity here (not a differently-named Karl device) and confirmed the I-SID is 144154 (after two garbled attempts typing it — "155\`54" then "144\`54" then clean "144154").
+
+**Reasoning walked through with user:** SW2 reaches the RDU-Core border for I-SID 144154 by routing *through* SW1's own NNI port anyway — SW1 sits on the identical path, one hop closer to the border. So if it works from SW2, the I-SID 144154 tunnel is already proven healthy end-to-end (border, firewall, DHCP relay/server all shared infrastructure, clearly fine). The difference has to be local to wherever the AP physically attaches on SW1 — not the fabric tunnel itself.
+
+**User confirmed: the AP on SW1 is plugged into port 1/11** — the exact port from the Sept 5 session above that kept flapping against 1/7 and never completed a stable FA assignment (`ELEM AUTH: successAuth` / `ASGN AUTH: none`). **This is very likely the same unresolved Sept 5 problem resurfacing under a new symptom** (no mobile-user DHCP, vs. EP1 policy stuck at 34% on Sept 5) rather than a distinct new issue — not confirmed via fresh CLI yet, but the port match makes it the leading explanation.
+
+**Diagnostics queued, not yet run** (user said "LTR — I did not figure out what to do for the flapping"):
+```
+show fa assignment
+show isis spbm i-sid discover
+```
+`show fa assignment` = is the local port bound (active/client vs. none)? `show isis spbm i-sid discover` = is a remote partner discovered for 144154 fabric-wide (already inferred healthy from the SW2 evidence, but not yet confirmed via this specific command on SW1 tonight). Two next-step options discussed: (1) swap the AP to a different port on SW1 (not 1/7 — the other end of the known flap) to test port/cable vs. AP-hardware as the cause, or (2) run the two show commands first to confirm the current state before touching hardware.
+
+**Status: PAUSED, user said "Save work. Will open tomorrow."** Resume with the two show commands, or the port swap test — user had not decided which when the session ended. EOD: `lab-journal/khklab_grt_review_and_sw1sw2_dhcp_20260907.html` in EOD_HTML repo (also covers the GRT/IP Shortcuts research review folded into `project_l3vsn_grt_deepdive.md` this same session).
+
 EOD: `lab-journal/khklab_sw1_ap1-11_diagnosis_20260905.html` (pending push).

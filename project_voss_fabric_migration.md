@@ -938,4 +938,36 @@ A parallel Claude session (same transcript source as above) pulled the real prod
 
 **Also fixed in round 2:** `is-type l1` (explicit Level-1-only IS-IS — the correct, meaningful choice for a flat two-switch single-area lab, not just cosmetic) and `sys-name` (display label only, doesn't replace the real numeric `system-id`) were both flagged as present in production and missing from the lab build in round 1, but weren't actually added until round 2 — now added to both switches' `router isis` blocks, confirmed present in the final PDF.
 
+## Sept 7 2026 (still later) — Fabric Extend without SD-WAN brainstorm; Option C (GRT-tunnel over home router) reviewed and adopted; 3-port lab topology confirmed
+
+User has no dedicated WAN at home, just one router. Brainstormed how to demo Fabric Extend without an SD-WAN appliance. Key fact (KB-confirmed elsewhere in prior sessions): FE is transport-agnostic — rides any IP network, VXLAN/IPsec — so SD-WAN is not a hard requirement, just the typical enterprise transport.
+
+**Cross-session discrepancy noted:** a parallel session (same transcript source as the reviews above) was told by the user "I have one SD_WAN though," which is why that session explored appliance-repairing/cloud-hub options not relevant to the actual home-lab setup described here (one router, no dedicated WAN). Both threads converged on the same underlying approach — Option C — despite the different framing.
+
+**Option C: native FE tunnel between GRT CLIPs over the flat home-router LAN.**
+- **GRT CLIP** = Circuitless IP in VRF 0/GlobalRouter, consistent with GRT mechanics already documented in `project_l3vsn_grt_deepdive.md`. SW1 already has one (`10.0.0.1`); SW2 needs one added (`10.0.0.2`).
+- **Constraint:** the FE tunnel source IP must be a GRT CLIP, not VRF-bound — this is why a plain VRF loopback wouldn't work here.
+- **Proposed FE tunnel CLI (NOT KB-cited when reviewed — flag as unverified):**
+  ```
+  router isis
+    ip-tunnel-source-address <local-GRT-CLIP>
+    exit
+  logical-intf isis 1 dest-ip <remote-GRT-CLIP> name "FE-to-<peer>"
+  ```
+  Verify against KB or live `show isis logical-interface` (origin column shows `ZTF`=auto vs `CFG`=manual) before typing on hardware.
+- **NNI-shutdown test** (to prove FE-only fabric survival): use `shutdown` on the NNI port (this specific command *was* KB-cited in the reviewed transcript) — but this exposed a gap: SW2's only uplink was VRF-bound (guest), not GRT-facing, so killing the NNI would strand SW2's GRT CLIP with no path to SW1's.
+- **Gap-fix confirmed correct and adopted:** new VLAN 902 on SW2 port 1/3 as a pure GRT L2 transit VLAN across the router's flat LAN. Verified compliant with this session's own just-closed grammar rules — uses `vlan members add 902 1/3 portmember` (mandatory `add`, not the bare form) and `type port-mstprstp 0`.
+- **Unverified architectural claim:** that once both native NNI and the FE tunnel are up, they show as two *separate simultaneous* IS-IS adjacencies (`show isis adjacencies`). Plausible but not KB-confirmed in what was reviewed — confirm live when tested.
+
+**Final 3-port physical topology (confirmed with user):**
+| Switch | Port | Purpose | VLAN | Notes |
+|--------|------|---------|------|-------|
+| SW1 | 1/1 | GRT uplink | 900 | already existed; carries Staff/AP_Mgmt route out + SW1's side of the GRT-to-GRT path |
+| SW2 | 1/1 | Guest uplink | 901 (VRF guest) | already existed; internet-only for Guest |
+| SW2 | 1/3 | GRT transit (new) | 902 | pure L2 transit — NOT internet-bound; gives SW2's GRT CLIP a path to SW1's GRT CLIP across the router's flat LAN once NNI 1/10 is shut down for the test |
+
+Medical stays fully closed throughout — it has no uplink of its own on either switch, regardless of this topology change. Router needs 3 free LAN ports (or one port fanned out via an unmanaged switch, since it's flat L2 either way) — no additional router-side config needed.
+
+**Open verification items:** the FE tunnel CLI block and the "two simultaneous adjacencies" claim are both plausible-but-unconfirmed; verify against KB and/or live on KhKLab-SW-01/SW2 before typing. Not yet actioned on hardware as of this entry.
+
 **Current reference file:** `/Users/khukhan/Downloads/SW1-SW2-Fabric-Connect-Lab-Build-Reference_11pm_Sep 7 2026.pdf` — supersedes the earlier `_UpdatedSyntax_Sep 7 2026.pdf` version. Not yet copied into this project's memory or the EOD_HTML repo.

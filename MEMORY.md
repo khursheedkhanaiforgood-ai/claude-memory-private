@@ -2,6 +2,7 @@
 
 ## 🔔 Active Alerts — Surface Every Session, Any Directory
 - [feedback_concurrent_sessions.md](feedback_concurrent_sessions.md) — ⚠️ Up to 4 concurrent sessions active. Always re-read shared files before writing. Minimize edits to MEMORY.md + CLAUDE.md.
+- **[project_nac_ce_vs_cisco_client_prep.md](project_nac_ce_vs_cisco_client_prep.md)** — Client meeting Tuesday: EN_NAC-CE vs Cisco ISE. TPS/failover benchmark gap CONFIRMED absent in KB+SharePoint+Highspot. Doc final. Next: escalate to PM/GTAC if client demands hard numbers.
 
 - **deep-research-engine** — Phase 0 done (8/8 tests, commit `4cd6b90`, May 25 2026). **Phase 1 BLOCKED** pending architecture review. Say: *"Want to do the arch review for deep-research-engine so we can start Phase 1?"* Repo: `/Users/khukhan/deep-research-engine/`. Full context in `BACKLOG.md` there.
 - **802.11 Mastery curriculum** — Phase 1 Day 1 NOT STARTED (last: 2026-05-28). OFDM question loaded. Say *"start curriculum"* to begin. Context: `project_wifi_mastery_progress.md`.
@@ -65,6 +66,7 @@
 - [reference_fabric_microsegmentation.md](reference_fabric_microsegmentation.md) — Extreme Fabric Connect hyper-/micro-segmentation + Native Stealth + ZK Research 3rd-party validation: VSN/I-SID mechanism (16M IDs vs 4094 VLANs), edge-only provisioning, IP-invisible topology, "Secure = micro-seg + stealth" pillar confirmed independently, Unify/Automate/Secure framework
 - [reference_fabric_connect_attach_extend_primer.md](reference_fabric_connect_attach_extend_primer.md) — Detailed FA/Fabric Connect/Fabric Extend primer: FA discovery+signaling via LLDP, 802.1aq(control)/802.1ah(envelope) split, B-MAC=node System ID, corrected end-to-end forwarding sequence, FE both-ends CLI + open gaps list
 - [reference_iqcontroller_vs_iqengine.md](reference_iqcontroller_vs_iqengine.md) — IQEngine = AP OS/firmware persona (ex-HiveOS); IQController/XIQ-C = separate on-prem controller product. Not interchangeable.
+- [reference_extreme_control_nac_docs.md](reference_extreme_control_nac_docs.md) — ExtremeControl (NAC) doc index: architecture, deployment/config guides, GTAC, competitive (vs ISE covered, vs ClearPass = gap). ExtremeControl is a Site Engine app, NOT bundled in EP1/UZTNA (correction). Local folder: `~/Library/CloudStorage/OneDrive-ExtremeNetworks,Inc/Documents/Extreme_Product_Reference/Extreme_Control_NAC/`.
 
 ## Feedback
 - [feedback_memory_cleanup_ask_first.md](feedback_memory_cleanup_ask_first.md) — ALWAYS ask before removing/trimming/archiving any memory entry. No silent deletions. Confirmed 2026-08-05.
@@ -117,6 +119,7 @@
 - [feedback_fdb_vlan_verification.md](feedback_fdb_vlan_verification.md) — `show fdb ports X` is authoritative VLAN truth; ARP ages 20 min. Dual-MAC in two ARP tables = expected when testing both PPSK passphrases on same device.
 - [feedback_supplemental_cli_idempotency.md](feedback_supplemental_cli_idempotency.md) — `enable dhcp` and `enable ipforwarding` are NOT idempotent on EXOS — hang XIQ at 15%. Run manually post-factory-reset only.
 - [feedback_ssh_hostkey_reset.md](feedback_ssh_hostkey_reset.md) — After AP factory reset: SSH blocks with "REMOTE HOST IDENTIFICATION HAS CHANGED". Fix: `ssh-keygen -R <ip>` then reconnect.
+- [feedback_workato_kb_numeric_unreliable.md](feedback_workato_kb_numeric_unreliable.md) — Workato KB Search scrambles exact numeric table cells even from the right source doc. Always verify benchmark/table numbers via direct WebFetch before quoting.
 - [feedback_iqagent_heartbeat.md](feedback_iqagent_heartbeat.md) — "proxy device-connector unknown POST /health-check/[serial]" at ~60s = normal IQAgent keepalive, NOT an error.
 - [feedback_ep1_stale_cache_mac_random.md](feedback_ep1_stale_cache_mac_random.md) — show station on AP is authoritative; EP1 client view lags. macOS randomizes MAC per SSID — verify with networksetup -getmacaddress en0.
 - [feedback_copyright.md](feedback_copyright.md) — Add copyright insignia to all HTML pages (5320-onboarding + engine). Flagged May 21, deferred.
